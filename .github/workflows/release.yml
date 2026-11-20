@@ -1,0 +1,122 @@
+name: Build and publish apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - link-to-drive-source.b64
+      - .github/workflows/release.yml
+      - desktop/**
+      - android/**
+      - scripts/**
+      - ui/**
+      - release-assets/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-release
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: source
+        name: Prepare source tree
+        shell: bash
+        run: |
+          if [ -f link-to-drive-source.b64 ]; then
+            python3 -c 'import base64,io,zipfile; from pathlib import Path; zipfile.ZipFile(io.BytesIO(base64.b64decode(Path("link-to-drive-source.b64").read_text()))).extractall(".")'
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git rm link-to-drive-source.b64
+            git add desktop android scripts ui release-assets README.md .gitignore
+            git commit -m "Add Android, Windows and macOS app sources"
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    needs: source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows-x64
+          - os: macos-15-intel
+            name: macOS-Intel
+          - os: macos-15
+            name: macOS-Apple-Silicon
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install desktop dependencies
+        run: python -m pip install -r desktop/requirements.txt
+      - name: Validate and package the desktop app
+        run: |
+          python -m compileall -q desktop scripts
+          python scripts/package_desktop.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: release-build/*
+          if-no-files-found: error
+
+  android:
+    needs: source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile Android source
+        run: python3 scripts/build_android.py --unsigned --output .build/android/compiled.apk
+      - name: Verify signed Android release
+        run: |
+          tools=$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -1)
+          "$tools/apksigner" verify --verbose release-assets/Drive-Link-Importer-Android.apk
+          "$tools/aapt" dump badging release-assets/Drive-Link-Importer-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android
+          path: release-assets/*.apk
+          if-no-files-found: error
+
+  release:
+    needs: [source, desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-build
+          merge-multiple: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.source.outputs.sha }}
+        run: |
+          cd release-build
+          sha256sum * > SHA256SUMS.txt
+          if ! gh release view v1.0.0 >/dev/null 2>&1; then
+            gh release create v1.0.0 --title "Drive Link Importer 1.0.0" --target "$RELEASE_COMMIT" --notes-file ../release-assets/NOTES.md
+          fi
+          gh release upload v1.0.0 ./* --clobber
