@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Drive Link Importer</title>
+  <style>
+    :root { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #edf0ff; background: #101321; font-size: 14px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 22px; }
+    main { max-width: 620px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 17px; padding: 24px;
+      border: 1px solid #454c76; border-radius: 20px;
+      background: linear-gradient(115deg, #342b58, #242e51 65%, #1b3b45); }
+    .mark { display: grid; place-items: center; flex-shrink: 0; width: 53px; height: 60px;
+      border: 1px solid #595781; background: #181b33; border-radius: 15px; color: #c4beff; font-size: 31px; }
+    h1 { margin: 0 0 7px; font-size: clamp(22px, 5.5vw, 29px); letter-spacing: -.7px; }
+    p { margin: 0; line-height: 1.5; color: #b4c0da; }
+    .card { margin-top: 18px; padding: 22px; border: 1px solid #35405b;
+      background: #1b2033; border-radius: 18px; }
+    label { display: block; font-weight: 650; margin-bottom: 9px; }
+    label span { font-size: 12px; font-weight: 400; color: #a8b4d2; margin-left: 8px; }
+    input { width: 100%; min-width: 0; height: 48px; padding: 0 13px; border: 1px solid #465270;
+      border-radius: 10px; background: #121729; color: #f0f2ff; font: inherit; outline: none; }
+    input:focus { border-color: #b8afff; box-shadow: 0 0 0 2px #b8afff26; }
+    input::placeholder { color: #94a4c3; }
+    input:disabled { color: #9eacc7; }
+    .field + .field { margin-top: 22px; }
+    .link-row { display: flex; gap: 8px; }
+    button { min-height: 44px; padding: 0 15px; border: 1px solid #44516f; border-radius: 10px;
+      background: #28324b; color: #edf0ff; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    button:hover { background: #35425f; }
+    button:focus-visible { outline: 2px solid #c6c0ff; outline-offset: 3px; }
+    button:disabled { opacity: .55; cursor: default; }
+    .primary { background: #bcb3ff; color: #211b3d; border-color: #bcb3ff; font-weight: 750; }
+    .primary:hover { background: #d2caff; }
+    .quiet { padding: 0 8px; border-color: transparent; background: transparent; color: #c5cfeb; }
+    .save-row { display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      margin-top: 23px; padding-top: 17px; border-top: 1px solid #343e59; }
+    .destination { font-size: 12px; color: #aebddd; line-height: 1.6; }
+    .destination strong { color: #dce4ff; font-weight: 550; }
+    .transfer { margin-top: 16px; padding: 20px; background: #1d253c; border: 1px solid #4b597e;
+      border-radius: 16px; }
+    .transfer.success { background: #172c2a; border-color: #365e50; }
+    .transfer.error { background: #2e2230; border-color: #71465b; }
+    .status-row { display: flex; align-items: center; gap: 12px; }
+    .status { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 650; line-height: 1.5; }
+    .percent { color: #c6c0ff; font-size: 30px; font-weight: 750; letter-spacing: -1px; }
+    .success .percent, .success .status { color: #a2ebce; }
+    .error .status { color: #ffc1d0; }
+    progress { display: block; width: 100%; height: 8px; margin-top: 17px; border: 0;
+      appearance: none; background: #37415f; border-radius: 5px; overflow: hidden; accent-color: #bdb2ff; }
+    progress::-webkit-progress-bar { background: #37415f; border-radius: 5px; }
+    progress::-webkit-progress-value { background: #bdb2ff; border-radius: 5px; transition: width .4s; }
+    .success progress::-webkit-progress-value { background: #9ce7c8; }
+    .progress-bottom { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 9px; }
+    .metrics { color: #aebcdb; font-size: 12px; line-height: 1.6; }
+    .spinner { width: 17px; height: 17px; flex-shrink: 0; border: 2px solid #545977;
+      border-top-color: #d2caff; border-radius: 50%; animation: spin 1s linear infinite; }
+    footer { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 14px; }
+    .connection { margin-right: auto; font-size: 12px; color: #aebbd5; }
+    .dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #8de0bc; }
+    .disconnected .dot { background: #e1b787; }
+    .details { margin-top: 12px; font-size: 12px; color: #c9b9ca; }
+    .details p { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: inherit; }
+    [hidden] { display: none !important; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 430px) {
+      body { padding: 16px; }
+      header, .card { padding: 19px; }
+      header { gap: 12px; }
+      .mark { width: 43px; height: 52px; }
+      .save-row { align-items: flex-end; gap: 10px; }
+      .primary { padding: 0 12px; }
+      footer button { font-size: 12px; min-height: 40px; padding: 0 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="mark" aria-hidden="true">↓</div>
+      <div><h1>Import to My Drive</h1><p>Bring a shared file or folder into your Drive.</p></div>
+    </header>
+    <form class="card" id="form">
+      <div class="field">
+        <label for="link">Google Drive link</label>
+        <div class="link-row">
+          <input id="link" type="url" inputmode="url" placeholder="https://drive.google.com/…" required autocomplete="off">
+          <button id="paste" type="button">Paste</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="name">Save as <span>Optional</span></label>
+        <input id="name" placeholder="Use the original Drive name" autocomplete="off" maxlength="250">
+      </div>
+      <div class="save-row">
+        <div class="destination">Save to My Drive<br><strong>Drive Link Imports</strong></div>
+        <button id="import" class="primary" type="submit" disabled>↓ Import link</button>
+      </div>
+    </form>
+    <section id="transfer" class="transfer" hidden aria-live="polite">
+      <div class="status-row"><div id="spinner" class="spinner" hidden></div><div id="status" class="status"></div><div id="percent" class="percent" hidden>0%</div></div>
+      <progress id="progress" max="100" value="0" aria-label="Import progress" hidden></progress>
+      <div class="progress-bottom"><div id="metrics" class="metrics"></div><button id="cancel" class="quiet" type="button" hidden>Cancel</button></div>
+      <details id="details" class="details" hidden><summary>Error details</summary><p id="error"></p></details>
+    </section>
+    <footer>
+      <div id="connection" class="connection disconnected"><span class="dot"></span><span id="account">Checking connection…</span></div>
+      <button id="connect" class="quiet" type="button">Connect Google</button>
+      <button id="pair" class="quiet" type="button" hidden>Pair phone</button>
+      <button id="drive" class="quiet" type="button">Open My Drive ↗</button>
+    </footer>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    let current = {busy: false, connected: false};
+    let lastResult = "";
+    let polling = false;
+    async function call(method, ...args) {
+      if (window.Android) return JSON.parse(window.Android[method](...args));
+      if (window.pywebview && window.pywebview.api) return await window.pywebview.api[method](...args);
+      throw new Error("App connection is starting. Try again.");
+    }
+    function render(state) {
+      current = state;
+      const busy = Boolean(state.busy);
+      $("link").disabled = busy;
+      $("name").disabled = busy;
+      $("paste").disabled = busy;
+      $("import").disabled = busy || !$("link").value.trim();
+      $("connect").disabled = busy;
+      $("pair").disabled = busy;
+      $("pair").hidden = state.platform !== "desktop" || !state.connected;
+      $("connect").textContent = state.platform === "android"
+        ? (state.connected ? "Connection" : "Connect Drive")
+        : (state.connected ? "Reconnect" : "Connect Google");
+      $("account").textContent = state.connected ? "Google connected" : "Google account required";
+      $("connection").classList.toggle("disconnected", !state.connected);
+      $("transfer").hidden = !state.message;
+      $("transfer").className = "transfer" + (state.phase === "done" ? " success" : state.phase === "error" ? " error" : "");
+      $("status").textContent = state.message || "";
+      $("spinner").hidden = !busy;
+      const showPercent = typeof state.percent === "number";
+      $("percent").hidden = !showPercent;
+      $("progress").hidden = !showPercent && !busy;
+      if (showPercent) {
+        $("percent").textContent = Math.floor(state.percent) + "%";
+        $("progress").value = state.percent;
+      } else {
+        $("progress").removeAttribute("value");
+      }
+      $("metrics").textContent = state.metrics || "";
+      $("cancel").hidden = !busy;
+      $("cancel").disabled = state.phase === "cancelling";
+      $("details").hidden = !state.error;
+      $("error").textContent = state.error || "";
+      if (state.phase === "done" && lastResult !== state.finishedAt) {
+        lastResult = state.finishedAt;
+        $("link").value = "";
+        $("name").value = "";
+        $("import").disabled = true;
+      }
+    }
+    function report(error) { render({...current, busy: false, phase: "error", message: String(error.message || error)}); }
+    async function refresh() {
+      if (polling) return;
+      polling = true;
+      try { render(await call("get_state")); } catch (_) {} finally { polling = false; }
+    }
+    $("link").addEventListener("input", () => $("import").disabled = current.busy || !$("link").value.trim());
+    $("form").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (current.busy) return;
+      try { render(await call("start_import", $("link").value.trim(), $("name").value.trim())); }
+      catch (error) { report(error); }
+    });
+    $("paste").onclick = async () => {
+      try { const value = await call("paste"); if (value) { $("link").value = value.trim(); $("link").dispatchEvent(new Event("input")); } }
+      catch (error) { report(error); }
+    };
+    $("cancel").onclick = async () => { try { render(await call("cancel")); } catch (error) { report(error); } };
+    $("connect").onclick = async () => { try { await call("connect"); await refresh(); } catch (error) { report(error); } };
+    $("pair").onclick = async () => { try { await call("pair_phone"); await refresh(); } catch (error) { report(error); } };
+    $("drive").onclick = async () => { try { await call("open_drive"); } catch (error) { report(error); } };
+    window.receiveLink = value => { if (!current.busy) { $("link").value = value; $("link").dispatchEvent(new Event("input")); } };
+    document.addEventListener("DOMContentLoaded", refresh);
+    window.addEventListener("pywebviewready", refresh);
+    setInterval(refresh, 800);
+  </script>
+</body>
+</html>

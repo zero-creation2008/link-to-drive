@@ -1,0 +1,17 @@
+.build/
+release-build/
+desktop/bundle/
+__pycache__/
+*.pyc
+.venv/
+*.p12
+*.jks
+*.keystore
+*.password
+*.drive-connection.json
+rclone.conf
+connection.pending
+connection.enc
+*.spec
+*.idsig
+.DS_Store
